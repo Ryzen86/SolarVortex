@@ -1,0 +1,23 @@
+I have incorporated the findings from all 11 partial-module OpenCV notebooks and all 4 full-module OpenCV notebooks into the methodology. The paper now includes a robust "Systematic Research History" section that rigorously documents why the OpenCV approaches failed (due to hyperparameter brittleness, format sensitivity, tilt intolerance, and contrast variability) and effectively motivates the pivot to YOLOv8-OBB as a unified detector.
+
+Images to Add
+As requested, I've compiled a list of recommended images to add to the paper to strengthen the narrative. These are also listed in Appendix B of the draft:
+
+Pipeline Overview Diagram (Figure 1): A block diagram showing the end-to-end flow: raw module → YOLO OBB → perspective correction → CBAM-CNN triage → segmentation → defect map.
+Class Distribution Bar Chart (Figure 2): A bar chart of the Stage 3 dataset showing sample counts per superclass before and after the 29→4 consolidation to highlight the class imbalance.
+CLAHE Effect Visualisation (Figure 3): Screenshots from preprocessing1/preprocessing2 showing a cell before and after median blur + CLAHE to demonstrate the normalisation of EL emission.
+Intensity Profile Plots (Figure 4): Plots from preprocessing1 showing row/column intensity profiles (raw vs. median-filtered) to prove the existence of the periodic busbar dips.
+Classical Approach Failure Gallery (Figure 5): A 4-panel grid showing:
+(a) A morphological detection success on a clean ARTS cell
+(b) A "no cell found" failure image
+(c) DBSCAN-merged Hough lines on a multi-cell image
+(d) Raw Hough output from fullmodulev1 showing duplicate lines
+YOLO OBB Detection Results (Figure 6): Oriented bounding boxes overlaid on full-module EL images (including at least one tilted module) and their resulting perspective-corrected crops.
+CBAM Architecture Diagram (Figure 7): A diagram illustrating the channel and spatial attention computation within the backbone.
+Optuna Trial History (Figure 8): A plot showing Validation AUROC vs. trial number to show hyperparameter search convergence for Stage 2.
+Stage 3 Qualitative Overlays (Figure 9): One B-grade cell per superclass showing: ground-truth mask (left), model prediction (centre), and a failure case (right).
+Error Cascade Ablation (Figure 10): A bar chart comparing mIoU/F1 for Stage 2/3 when using ground-truth crops vs. YOLO-predicted crops to quantify Stage 1's error propagation.
+Please take a look at the newly generated 
+
+solarvortexpaperv2.md
+. Let me know what revisions you'd like to make next! We can refine the text, fill in the placeholders, or start working on those figures.

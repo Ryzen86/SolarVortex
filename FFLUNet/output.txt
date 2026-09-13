@@ -1,0 +1,62 @@
+Using device: cuda:0
+
+#######################################################################
+Please cite the following paper when using nnU-Net:
+Isensee, F., Jaeger, P. F., Kohl, S. A., Petersen, J., & Maier-Hein, K. H. (2021). nnU-Net: a self-configuring method for deep learning-based biomedical image segmentation. Nature methods, 18(2), 203-211.
+#######################################################################
+
+[PlainConvUNet]: (FLOPs:2.5021 TFLOPS, MACs:1.2473 TMACs, #Params:30.7894 M)
+0
+1
+2
+3
+4
+PlainConvUNet CPU Inference: 90.129 ± 1.654 s
+0
+1
+2
+3
+4
+PlainConvUNet GPU Inference: 8.536 ± 0.064 s
+[FFLUNetDynamicWindowShift]: (FLOPs:11.4373 GFLOPS, MACs:5.518 GMACs, #Params:1.4551 M)
+0
+1
+2
+3
+4
+FFLUNetDynamicWindowShift CPU Inference: 19.369 ± 0.514 s
+0
+1
+2
+3
+4
+FFLUNetDynamicWindowShift GPU Inference: 1.619 ± 0.382 s
+[FFLUNetDynamicWindowShift4Layers]: (FLOPs:11.0424 GFLOPS, MACs:5.3224 GMACs, #Params:417.887 K)
+0
+1
+2
+3
+4
+FFLUNetDynamicWindowShift4Layers CPU Inference: 19.282 ± 1.185 s
+0
+1
+2
+3
+4
+FFLUNetDynamicWindowShift4Layers GPU Inference: 1.952 ± 0.009 s
+[FFLUNetAttentionDynamicShift]: (FLOPs:14.4145 GFLOPS, MACs:6.8426 GMACs, #Params:1.4407 M)
+0
+1
+2
+3
+4
+FFLUNetAttentionDynamicShift CPU Inference: 29.538 ± 1.037 s
+0
+1
+2
+3
+4
+FFLUNetAttentionDynamicShift GPU Inference: 2.782 ± 0.584 s
+[FFLUNetDynamicWindowShift12M]: (FLOPs:95.8177 GFLOPS, MACs:47.7646 GMACs, #Params:12.2338 M)
+FFLUNetDynamicWindowShift12M CPU Inference: 18.082 ± 0.420 s
+FFLUNetDynamicWindowShift12M GPU Inference: 1.914 ± 0.038 s

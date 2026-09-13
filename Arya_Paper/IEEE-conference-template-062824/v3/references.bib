@@ -1,0 +1,211 @@
+% =============================================================
+% BibTeX References for iSPEC 2026 Paper
+% "A Two-Stage Deep Learning Pipeline for Automated Cell-Level
+%  Extraction and Defect Triage in Photovoltaic Modules"
+% =============================================================
+
+% ----- Datasets -----
+
+@article{deitsch2019,
+  author    = {Deitsch, Sergiu and Christlein, Vincent and Berger, Stephan
+               and Buerhop-Lutz, Claudia and Maier, Andreas and
+               Gallwitz, Florian and Riess, Christian},
+  title     = {Automatic classification of defective photovoltaic module
+               cells in electroluminescence images},
+  journal   = {Solar Energy},
+  volume    = {185},
+  pages     = {455--468},
+  year      = {2019},
+  publisher = {Elsevier},
+  doi       = {10.1016/j.solener.2019.02.067}
+}
+
+% Stage-3 dataset -- to be confirmed upon permission approval
+@misc{dataset_seg,
+  author       = {{[Dataset Authors TBD]}},
+  title        = {{[Multi-class EL Defect Segmentation Dataset ---
+                  title and source to be confirmed upon permission approval]}},
+  year         = {2024},
+  howpublished = {Unpublished dataset}
+}
+
+% ----- IEA Global Solar Projection -----
+
+@techreport{iea2023,
+  author      = {{International Energy Agency}},
+  title       = {Renewables 2023: Analysis and Forecast to 2028},
+  institution = {IEA},
+  year        = {2023},
+  url         = {https://www.iea.org/reports/renewables-2023}
+}
+
+% ----- Deep Learning Backbones -----
+
+@inproceedings{he2016,
+  author    = {He, Kaiming and Zhang, Xiangyu and Ren, Shaoqing and Sun, Jian},
+  title     = {Deep Residual Learning for Image Recognition},
+  booktitle = {Proceedings of the IEEE Conference on Computer Vision and
+               Pattern Recognition (CVPR)},
+  pages     = {770--778},
+  year      = {2016}
+}
+
+@inproceedings{tan2019,
+  author    = {Tan, Mingxing and Le, Quoc V.},
+  title     = {{EfficientNet}: Rethinking Model Scaling for Convolutional
+               Neural Networks},
+  booktitle = {Proceedings of the International Conference on Machine
+               Learning (ICML)},
+  pages     = {6105--6114},
+  year      = {2019}
+}
+
+% ----- Attention / CBAM -----
+
+@inproceedings{woo2018,
+  author    = {Woo, Sanghyun and Park, Jongchan and Lee, Joon-Young
+               and Kweon, In So},
+  title     = {{CBAM}: Convolutional Block Attention Module},
+  booktitle = {Proceedings of the European Conference on Computer Vision
+               (ECCV)},
+  pages     = {3--19},
+  year      = {2018}
+}
+
+% ----- Hyperparameter Optimisation -----
+
+@inproceedings{akiba2019,
+  author    = {Akiba, Takuya and Sano, Shotaro and Yanase, Toshihiko
+               and Ohta, Takeru and Koyama, Masanori},
+  title     = {Optuna: A Next-Generation Hyperparameter Optimization
+               Framework},
+  booktitle = {Proceedings of the 25th ACM SIGKDD International
+               Conference on Knowledge Discovery \& Data Mining (KDD)},
+  pages     = {2623--2631},
+  year      = {2019}
+}
+
+% ----- Object Detection / YOLO -----
+
+@inproceedings{redmon2016,
+  author    = {Redmon, Joseph and Divvala, Santosh and Girshick, Ross
+               and Farhadi, Ali},
+  title     = {You Only Look Once: Unified, Real-Time Object Detection},
+  booktitle = {Proceedings of the IEEE Conference on Computer Vision and
+               Pattern Recognition (CVPR)},
+  pages     = {779--788},
+  year      = {2016}
+}
+
+@misc{jocher2023,
+  author       = {Jocher, Glenn and Chaurasia, Ayush and Qiu, Jing},
+  title        = {Ultralytics {YOLO} (version 8.0.0)},
+  year         = {2023},
+  url          = {https://github.com/ultralytics/ultralytics},
+  note         = {AGPL-3.0 License}
+}
+
+% ----- Segmentation Architectures -----
+
+@inproceedings{ronneberger2015,
+  author    = {Ronneberger, Olaf and Fischer, Philipp and Brox, Thomas},
+  title     = {{U-Net}: Convolutional Networks for Biomedical Image
+               Segmentation},
+  booktitle = {Proceedings of the International Conference on Medical
+               Image Computing and Computer-Assisted Intervention
+               (MICCAI)},
+  pages     = {234--241},
+  year      = {2015}
+}
+
+@inproceedings{zhou2018,
+  author    = {Zhou, Zongwei and Rahman Siddiquee, Md Mahfuzur
+               and Tajbakhsh, Nima and Liang, Jianming},
+  title     = {{UNet++}: A Nested {U-Net} Architecture for Medical Image
+               Segmentation},
+  booktitle = {Proceedings of the Deep Learning in Medical Image Analysis
+               and Multimodal Learning for Clinical Decision Support
+               Workshop (DLMIA/MICCAI)},
+  year      = {2018}
+}
+
+@inproceedings{xie2021,
+  author    = {Xie, Enze and Wang, Wenhai and Yu, Zhiding and
+               Anandkumar, Anima and Alvarez, Jose M. and Luo, Ping},
+  title     = {{SegFormer}: Simple and Efficient Design for Semantic
+               Segmentation with Transformers},
+  booktitle = {Advances in Neural Information Processing Systems
+               (NeurIPS)},
+  volume    = {34},
+  pages     = {12077--12090},
+  year      = {2021}
+}
+
+% ----- Classical Computer Vision Methods -----
+
+@article{duda1972,
+  author  = {Duda, Richard O. and Hart, Peter E.},
+  title   = {Use of the {Hough} Transformation to Detect Lines and
+             Curves in Pictures},
+  journal = {Communications of the ACM},
+  volume  = {15},
+  number  = {1},
+  pages   = {11--15},
+  year    = {1972}
+}
+
+@book{soille2003,
+  author    = {Soille, Pierre},
+  title     = {Morphological Image Analysis: Principles and Applications},
+  edition   = {2nd},
+  publisher = {Springer},
+  address   = {Berlin},
+  year      = {2003}
+}
+
+@article{wong1982,
+  author  = {Wong, Kwan Y.},
+  title   = {Document Analysis and Recognition Using Projection Profiles},
+  journal = {Pattern Recognition},
+  volume  = {15},
+  number  = {3},
+  pages   = {191--199},
+  year    = {1982}
+}
+
+% ----- Instance Segmentation (Future Work reference) -----
+
+% ----- Modern Architectures (ConvNeXt, Swin) -----
+
+@inproceedings{liu2022,
+  author    = {Liu, Zhuang and Mao, Hanzi and Wu, Chao-Yuan and
+               Feichtenhofer, Christoph and Darrell, Trevor and
+               Xie, Saining},
+  title     = {A {ConvNet} for the 2020s},
+  booktitle = {Proceedings of the IEEE/CVF Conference on Computer
+               Vision and Pattern Recognition (CVPR)},
+  pages     = {11976--11986},
+  year      = {2022}
+}
+
+@inproceedings{liu2021,
+  author    = {Liu, Ze and Lin, Yutong and Cao, Yue and Hu, Han
+               and Wei, Yixuan and Zhang, Zheng and Lin, Stephen
+               and Guo, Baining},
+  title     = {Swin Transformer: Hierarchical Vision Transformer
+               using Shifted Windows},
+  booktitle = {Proceedings of the IEEE/CVF International
+               Conference on Computer Vision (ICCV)},
+  pages     = {10012--10022},
+  year      = {2021}
+}
+
+@inproceedings{he2017,
+  author    = {He, Kaiming and Gkioxari, Georgia and
+               Doll{\'a}r, Piotr and Girshick, Ross},
+  title     = {Mask {R-CNN}},
+  booktitle = {Proceedings of the IEEE International Conference on
+               Computer Vision (ICCV)},
+  pages     = {2961--2969},
+  year      = {2017}
+}

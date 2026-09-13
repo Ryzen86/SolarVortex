@@ -1,0 +1,823 @@
+% =============================================================
+% IEEE iSPEC 2026 Conference Paper
+% Title: A Three-Stage Deep Learning Pipeline for Automated
+%        Cell-Level Extraction, Defect Triage, and Fine-Grained
+%        Segmentation in Photovoltaic Modules
+% Template: IEEE Conference Template (062824)
+% =============================================================
+
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the
+% first footnote. If that is unneeded, please comment it out.
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}   % for professional tables
+\usepackage{multirow}   % for multi-row table cells
+\usepackage{url}        % for URLs in references
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+% ---- Convenience command for TBD placeholders ----
+\newcommand{\tbd}[1][\,]{\textbf{[TBD#1]}}
+
+\begin{document}
+
+% ================================================================
+%  TITLE
+% ================================================================
+\title{A Three-Stage Deep Learning Pipeline for Automated\\
+Cell-Level Extraction, Defect Triage, and Fine-Grained\\
+Segmentation in Photovoltaic Modules%
+\thanks{This work was carried out at the Indian Institute of
+Technology Mandi. The authors gratefully acknowledge the
+support of IIT Mandi and the guidance of their research
+supervisor.}
+}
+
+% ================================================================
+%  AUTHORS  -- fill in actual names, affiliations and emails
+% ================================================================
+\author{%
+\IEEEauthorblockN{1\textsuperscript{st} \textbf{[Author 1 Name]}}
+\IEEEauthorblockA{\textit{\textbf{[Department]}} \\
+\textit{Indian Institute of Technology Mandi}\\
+Mandi, Himachal Pradesh, India \\
+\textbf{[email@iitmandi.ac.in]}}
+\and
+\IEEEauthorblockN{2\textsuperscript{nd} \textbf{[Author 2 Name]}}
+\IEEEauthorblockA{\textit{\textbf{[Department]}} \\
+\textit{Indian Institute of Technology Mandi}\\
+Mandi, Himachal Pradesh, India \\
+\textbf{[email@iitmandi.ac.in]}}
+}
+
+\maketitle
+
+% ================================================================
+%  ABSTRACT
+% ================================================================
+\begin{abstract}
+Automated visual inspection of photovoltaic (PV) modules is
+essential for large-scale solar farm quality control and
+predictive maintenance, yet existing approaches are typically
+evaluated only on pre-cropped, single-cell images and collapse
+fine-grained defect taxonomies into coarse binary labels.
+This paper proposes a two-stage pipeline (with a roadmap to
+a third segmentation stage) that operates directly on
+module-level electroluminescence (EL) imagery---including
+full modules and partial or occluded captures---spanning both
+monocrystalline and polycrystalline cell types.
+Stage~1 performs cell extraction from raw module images
+using YOLOv8-OBB (oriented bounding boxes), adopted after a
+systematic evaluation of eleven classical OpenCV-based
+approaches across two dataset tracks
+(CellExtractOpenCV and FullModuleOpenCV), none of which
+generalised robustly across module formats and imaging
+conditions.
+Stage~2 performs binary quality triage (OK vs.\ B-grade)
+using CNN backbones (ResNet, EfficientNet) augmented with a
+Convolutional Block Attention Module (CBAM), with
+hyperparameters tuned via Optuna.
+A third stage for pixel-level defect segmentation---using a
+principled 29$\to$4 defect-class consolidation and a
+comparison of convolutional (U-Net family) against
+transformer-based (SegFormer) architectures---is under active
+development.
+We report \tbd{} mAP for Stage~1 cell extraction and
+\tbd{} AUROC for Stage~2 triage.
+\end{abstract}
+
+\begin{IEEEkeywords}
+photovoltaic inspection, electroluminescence imaging,
+YOLOv8-OBB, oriented bounding boxes, defect classification,
+CBAM, attention mechanism, Optuna, deep learning, solar energy
+\end{IEEEkeywords}
+
+% ================================================================
+%  SECTION I --- INTRODUCTION
+% ================================================================
+\section{Introduction}
+
+The global PV industry is undergoing rapid capacity expansion,
+with cumulative installed solar capacity projected to exceed
+10~TW by~2030. Maintaining cell-level quality throughout the
+module manufacturing lifecycle and in-field operation is a
+critical bottleneck: manual electroluminescence (EL) imaging
+inspection is labour-intensive, subjective, and fails to scale
+to the throughput requirements of modern manufacturing lines
+or drone-based fleet inspection.
+
+Three unresolved gaps motivate this work.
+\textit{First}, most published EL defect classification and
+segmentation studies---including benchmark work on the ELPV
+dataset~\cite{deitsch2019}---assume that individual cell crops
+are provided as input.
+In realistic deployment, raw module-level images arrive with
+arbitrary orientation, partial occlusion, and perspective
+distortion; no robust plug-in pipeline exists to bridge this gap.
+\textit{Second}, binary ``defective/non-defective''
+classification is the prevailing paradigm.
+While sufficient for pass/fail sorting, it provides no
+information about \textit{which} failure mechanism is present
+or \textit{how severe} it is---information needed for
+warranty decisions, rework prioritisation, and predictive
+degradation modelling.
+\textit{Third}, fine-grained EL defect ontologies enumerate
+20--30 subtypes; yet many subtypes are rare and visually
+ambiguous, making direct multi-class segmentation
+statistically intractable without a principled class
+consolidation strategy.
+
+The contributions of this paper are:
+\begin{enumerate}
+  \item An end-to-end pipeline operating on \textbf{raw
+        module-level EL images} (full or partial, mono- and
+        polycrystalline), including perspective correction and
+        cell normalisation.
+  \item A rigorous ablation of \textbf{fifteen
+        OpenCV-based classical extraction iterations} (eleven
+        on partial/single-cell images, four on full-module
+        images), establishing root-cause failure modes and
+        motivating the adoption of deep-learning detection.
+  \item A \textbf{YOLOv8-OBB} detector for oriented cell
+        extraction, trained on 2{,}212 module images
+        (1{,}769 train / 443 val), serving as the unified
+        Stage~1 detector for both full-module and
+        partial-module inputs.
+  \item A CBAM-augmented, Optuna-tuned \textbf{binary triage
+        stage} benchmarked across ResNet and EfficientNet
+        backbones.
+  \item A forward-looking description of the Stage~3
+        segmentation roadmap: a defect-mechanism-informed
+        \textbf{29$\to$4 class consolidation} and a planned
+        comparison of CNN vs.\ transformer segmentation
+        architectures.
+\end{enumerate}
+
+% ================================================================
+%  SECTION II --- RELATED WORK
+% ================================================================
+\section{Related Work}
+
+\subsection{PV Defect Datasets}
+
+The ELPV dataset~\cite{deitsch2019} is the canonical benchmark
+for EL-based defect classification: 2{,}624 grayscale
+cell-level images (300$\times$300~px), labelled with defect
+probability and cell technology (mono/poly). Its widespread
+adoption has shaped the research paradigm toward pre-cropped
+single-cell inputs, leaving the module-to-cell extraction
+problem largely unaddressed.
+For Stage~3, a multi-class pixel-annotated EL dataset
+encompassing 29 defect subtypes with polygon-level
+annotations is used~\cite{dataset_tbd}.
+
+\subsection{Classical Cell Extraction from Module Images}
+
+Classical approaches to PV cell grid detection exploit the
+periodic spatial signal of busbars and inter-cell boundaries.
+Standard methods include Hough-transform-based line
+detection~\cite{hough_lines}, morphological line
+extraction~\cite{morph_lines}, projection
+profiling~\cite{projection_profiles}, and
+DBSCAN-assisted line clustering.
+While elegant, these approaches assume approximately
+axis-aligned images, low sensor noise, and consistent
+inter-cell contrast---conditions that fail for tilted,
+partially occluded, or field-degraded module captures.
+
+\subsection{Deep Learning for Cell Detection}
+
+YOLO-family models~\cite{redmon2016,jocher2023} demonstrate
+state-of-the-art throughput--accuracy trade-offs in
+industrial inspection.
+The YOLOv8-OBB variant extends axis-aligned detection with
+oriented bounding boxes, directly predicting a rotation angle
+alongside standard box parameters---making it suited to
+arbitrary-orientation PV cell extraction without
+pre-rectification.
+
+\subsection{Defect Classification and Segmentation}
+
+ResNet~\cite{he2016} and EfficientNet~\cite{tan2019} are the
+dominant backbones for EL defect classification.
+CBAM~\cite{woo2018} augments any CNN backbone with lightweight
+channel-wise and spatial-wise attention.
+For segmentation, U-Net~\cite{ronneberger2015} and
+U-Net++~\cite{zhou2018} dominate pixel-level inspection.
+Transformer-based SegFormer~\cite{xie2021} offers superior
+global context modelling, advantageous for spatially diffuse
+defects such as inactive regions and corrosion halos.
+
+% ================================================================
+%  SECTION III --- DATASET
+% ================================================================
+\section{Dataset}
+
+\subsection{Stage 1 --- Module-Level EL Images}
+
+The Stage~1 dataset consists of high-resolution JPEG EL images
+of commercial PV modules acquired under controlled imaging
+conditions.
+The dataset spans two module formats: 144-cell (6-string)
+and 208-cell (8-string) configurations.
+\begin{itemize}
+  \item \textbf{Total images:} 2{,}212 full-module EL captures.
+  \item \textbf{Split:} 80\,\% training (1{,}769~images) /
+        20\,\% validation (443~images); split at the module
+        level to prevent cell-level data leakage.
+  \item \textbf{Classical CV subsets:} ARTS, SDLE, and BMRK
+        datasets were used during the classical OpenCV
+        exploration phase, each representing different imaging
+        protocols and module manufacturers.
+\end{itemize}
+
+\subsection{Stage 2 --- Cell-Level Triage Images}
+
+Cells for binary triage are drawn from the ELPV
+dataset~\cite{deitsch2019} combined with cell crops extracted
+by the Stage~1 pipeline.
+Labels are binarised: OK (functional) vs.\ B-grade (defective).
+A module-level train/val/test split is applied to avoid
+spatial correlation across folds.
+
+\subsection{Stage 3 --- Pixel-Annotated B-Grade Cells}
+
+A multi-class EL segmentation dataset with polygon-level
+annotations covering 29 defect subtypes~\cite{dataset_tbd}
+provides training data for Stage~3.
+Table~\ref{tab:taxonomy} summarises the 29$\to$4 superclass
+consolidation motivated by physical failure mechanisms.
+
+\begin{table}[t]
+  \caption{Defect taxonomy: 29$\to$4 superclass consolidation}
+  \label{tab:taxonomy}
+  \begin{center}
+  \renewcommand{\arraystretch}{1.15}
+  \begin{tabular}{lp{2.8cm}p{1.5cm}}
+    \toprule
+    \textbf{Superclass} & \textbf{Physical Mechanism} &
+    \textbf{Class IDs} \\
+    \midrule
+    1 --- Crack &
+      Mechanical fracture of Si wafer &
+      10, 14, 28 \\
+    2 --- Inactive Area &
+      Electrically disconnected region &
+      11, 17, 20 \\
+    3 --- Corrosion/Metal. &
+      Finger/busbar degradation, oxidation &
+      15, 16, 18, 26 \\
+    4 --- Material/Surface &
+      Contamination, discoloration &
+      12, 13, 19, 25, 27 \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+\end{table}
+
+\subsection{General Preprocessing}
+
+All EL images are loaded as grayscale (single-channel) 8-bit
+images. The common preprocessing chain includes:
+(i)~median denoising (3$\times$3 kernel) to suppress
+salt-and-pepper noise;
+(ii)~CLAHE enhancement (clipLimit~=~2.0,
+tileGridSize~=~8$\times$8) to normalise non-uniform EL emission;
+(iii)~perspective correction via \texttt{cv2.warpPerspective}
+to warp each extracted cell to a canonical upright view; and
+(iv)~standard normalisation (mean subtraction, std division)
+before deep learning inference.
+
+% ================================================================
+%  SECTION IV --- METHODOLOGY
+% ================================================================
+\section{Methodology}
+
+\subsection{Stage 1 --- Cell Extraction}
+\label{sec:stage1}
+
+\subsubsection{Phase A: Classical OpenCV (CellExtractOpenCV)}
+
+Eleven notebooks systematically explored classical extraction
+on partial-module and single-cell images
+(preprocessing1--preprocessing11).
+Table~\ref{tab:classical_failure} summarises each approach and
+its key limitation.
+
+\begin{table}[t]
+  \caption{Classical OpenCV extraction: failure summary}
+  \label{tab:classical_failure}
+  \begin{center}
+  \renewcommand{\arraystretch}{1.1}
+  \small
+  \begin{tabular}{lp{1.9cm}p{2.4cm}}
+    \toprule
+    \textbf{Notebook} & \textbf{Technique} &
+    \textbf{Key Limitation} \\
+    \midrule
+    pp1  & CLAHE + intensity profiling & Exploratory; no extraction \\
+    pp2  & Morph.\ grid + persp.\ warp & Single image; not generalised \\
+    pp3  & Inversion + contour & Conflates cell with bright defects \\
+    pp4  & Batch \texttt{extract\_middle\_cell} & 5--10\,\% skip rate \\
+    pp5  & --                       & YOLO pivot notebook \\
+    pp6  & Gaussian + Canny         & Fragmented contours \\
+    pp7  & NL-Means + Hough         & Image-specific thresholds \\
+    pp8  & Same on multi-cell       & Requires a priori line count \\
+    pp9  & Otsu + Canny             & Format-specific count limit \\
+    pp10 & Otsu + contour polygon   & Fails on multi-cell images \\
+    pp11 & Hough + DBSCAN           & Dataset-specific $\epsilon$ tuning \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+\end{table}
+
+Four systematic failure modes were identified:
+\begin{enumerate}
+  \item \textit{Hyperparameter brittleness} --- CLAHE clip
+        limits, Hough thresholds, and DBSCAN~$\epsilon$ values
+        tuned for one image break on the next.
+  \item \textit{Module format sensitivity} --- the projection
+        peak detector counted 9 horizontal lines for one module
+        and 8 for the next (same physical format), yielding
+        208 vs.\ 182 cells.
+  \item \textit{Contrast variability} --- low-contrast
+        degraded regions cause grid detectors to miss busbar
+        lines below the adaptive threshold.
+  \item \textit{Perspective intolerance} --- morphological
+        kernels assume axis-aligned structure; even
+        5--10$^\circ$ module tilt causes systematic
+        misdetection.
+\end{enumerate}
+
+\subsubsection{Phase B: Classical OpenCV (FullModuleOpenCV)}
+
+A separate four-notebook track (fullmodulev1--fullmodulev4)
+targeted full-resolution module images.
+\texttt{fullmodulev2} achieved the first successful full-module
+extraction (144~cells from one module) using projection-profile
+peak detection after automatic dark-edge cropping.
+\texttt{fullmodulev4} processed 10~modules with DBSCAN-based
+line merging but still required manual cell-count verification
+per module and provided no perspective-correction capability.
+
+\subsubsection{Phase C: YOLOv8-OBB (Final Approach)}
+
+YOLOv8-OBB (Ultralytics~8.3.235)~\cite{jocher2023} was
+adopted as the unified Stage~1 detector.
+Each detection outputs five parameters:
+$(c_x, c_y, w, h, \theta)$, where $\theta$ is the rotation
+angle, enabling extraction of arbitrarily oriented cells
+without pre-rectification.
+Key advantages over classical methods: (i)~format agnosticism
+through learned features; (ii)~rotation robustness via
+oriented bounding boxes; (iii)~scale invariance from the
+multi-scale feature pyramid; (iv)~unified coverage of
+full-module, partial-module, and single-cell inputs with one
+model.
+
+The post-processing pipeline converts OBB outputs to
+rectified cell crops:
+\begin{equation}
+  (c_x, c_y, w, h, \theta)
+  \;\xrightarrow{\text{corner extraction}}\;
+  M_{\text{persp}}
+  \;\xrightarrow{\texttt{warpPerspective}}\;
+  \hat{I}_{\text{cell}}
+  \label{eq:postproc}
+\end{equation}
+where $\hat{I}_{\text{cell}}$ is the canonical
+perspective-corrected crop.
+
+Fig.~\ref{fig:yolo_detections} shows representative YOLOv8-OBB
+detections on a full-module EL image and resulting
+perspective-corrected cell crops.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_yolo_detections.png}
+  \caption{YOLOv8-OBB detections overlaid on a full-module
+           EL image (top) and resulting perspective-corrected
+           cell crops (bottom). Oriented bounding boxes
+           accommodate module tilt.}
+  \label{fig:yolo_detections}
+\end{figure}
+
+\subsection{Stage 2 --- Binary Quality Triage}
+\label{sec:stage2}
+
+\subsubsection{Architecture}
+
+Extracted and rectified cells from Stage~1 are classified as
+structurally intact (OK) or degraded (B-grade) using a
+pretrained CNN backbone (ResNet or EfficientNet) augmented with
+a CBAM block~\cite{woo2018} appended after the final
+convolutional stage, followed by global average pooling, a
+dropout-regularised fully connected layer, and a sigmoid
+output.
+
+CBAM applies dual attention sequentially.
+\textit{Channel attention} reweights feature channels:
+\begin{equation}
+  \mathbf{M}_c(\mathbf{F}) = \sigma\!\left(
+    W_1\!\left(\text{ReLU}\!\left(W_0\,\text{GAP}(\mathbf{F})\right)\right) +
+    W_1\!\left(\text{ReLU}\!\left(W_0\,\text{GMP}(\mathbf{F})\right)\right)
+  \right)
+  \label{eq:cbam_channel}
+\end{equation}
+\textit{Spatial attention} then localises discriminative regions:
+\begin{equation}
+  \mathbf{M}_s(\mathbf{F}') = \sigma\!\left(
+    f^{7\times7}\!\!\left(
+      \left[\text{AvgPool}(\mathbf{F}');\,\text{MaxPool}(\mathbf{F}')\right]
+    \right)\right)
+  \label{eq:cbam_spatial}
+\end{equation}
+where $\sigma$ is sigmoid, $W_0, W_1$ are MLP weights with
+reduction ratio~$r$, $f^{7\times7}$ is a $7{\times}7$
+convolution, and $\mathbf{F}' = \mathbf{M}_c \otimes \mathbf{F}$.
+Since defect features in EL images occupy typically $<$5\,\%
+of cell area, CBAM's dual attention suppresses irrelevant
+background without requiring localisation annotations.
+
+\subsubsection{Hyperparameter Optimisation via Optuna}
+
+Table~\ref{tab:optuna} lists the hyperparameter search space.
+The optimisation objective is validation AUROC, chosen for its
+threshold-invariant behaviour under class imbalance.
+
+\begin{table}[t]
+  \caption{Optuna hyperparameter search space for Stage~2}
+  \label{tab:optuna}
+  \begin{center}
+  \renewcommand{\arraystretch}{1.1}
+  \begin{tabular}{ll}
+    \toprule
+    \textbf{Hyperparameter} & \textbf{Search Space} \\
+    \midrule
+    Learning rate & LogUniform$[10^{-5},\;10^{-2}]$ \\
+    Backbone & \{ResNet-18, ResNet-50, EffNet-B0, EffNet-B3\} \\
+    CBAM reduction ratio $r$ & \{4, 8, 16\} \\
+    Dropout rate & Uniform$[0.1,\;0.5]$ \\
+    Batch size & \{16, 32, 64\} \\
+    Optimizer & \{Adam, AdamW, SGD+momentum\} \\
+    Objective & Validation AUROC \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+\end{table}
+
+\subsection{Stage 3 --- Defect Segmentation (Roadmap)}
+\label{sec:stage3}
+
+Stage~3 takes B-grade cell crops from Stage~2 as input and
+produces pixel-level defect maps over the four consolidated
+superclasses (Table~\ref{tab:taxonomy}).
+Five architectures are planned for comparison:
+U-Net~\cite{ronneberger2015}, U-Net++~\cite{zhou2018},
+Attention U-Net, SegFormer-B0, and
+SegFormer-B2~\cite{xie2021}.
+The loss function will be a combined Dice + Focal loss weighted
+by inverse class frequency to address severe class imbalance;
+Tversky loss is an additional candidate.
+Experiments are ongoing.
+
+\subsection{Pipeline Integration}
+
+Fig.~\ref{fig:pipeline} illustrates the end-to-end cascaded
+inference flow.
+A known risk is error propagation: missed cells at Stage~1
+create false negatives for Stage~2; misaligned crops produce
+distorted Stage~3 inputs.
+A planned ablation will compare pipeline performance with
+ground-truth vs.\ YOLO-predicted cell crops to quantify
+upstream error contribution.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_pipeline_overview.png}
+  \caption{End-to-end pipeline: raw module EL image
+           $\rightarrow$ YOLOv8-OBB extraction
+           $\rightarrow$ perspective correction
+           $\rightarrow$ CBAM-CNN triage
+           $\rightarrow$ (Stage~3, ongoing) segmentation
+           $\rightarrow$ per-cell defect map.}
+  \label{fig:pipeline}
+\end{figure}
+
+% ================================================================
+%  SECTION V --- EXPERIMENTAL SETUP
+% ================================================================
+\section{Experimental Setup}
+
+\textbf{Hardware:} \tbd[: GPU model and VRAM].
+
+\textbf{Software stack:}
+Python~3.x, PyTorch~\tbd{}, Ultralytics~8.3.235
+(YOLOv8-OBB), \texttt{timm}~\tbd{} (backbone weights),
+Optuna~\tbd{}, OpenCV~4.12.0.88, NumPy~1.26.4,
+scikit-learn~\tbd{}, Matplotlib~3.8.4.
+
+Table~\ref{tab:training_config} summarises the per-stage
+training configuration.
+
+\begin{table}[t]
+  \caption{Training configuration per stage}
+  \label{tab:training_config}
+  \begin{center}
+  \renewcommand{\arraystretch}{1.1}
+  \small
+  \begin{tabular}{lll}
+    \toprule
+    \textbf{Parameter} &
+    \textbf{Stage 1 (YOLO-OBB)} &
+    \textbf{Stage 2 (CNN)} \\
+    \midrule
+    Framework    & Ultralytics     & PyTorch + timm \\
+    Input res.   & \tbd{}          & \tbd{} \\
+    Epochs       & \tbd{}          & Optuna-selected \\
+    Batch size   & \tbd{}          & Optuna-selected \\
+    Optimizer    & \tbd{}          & Optuna-selected \\
+    LR schedule  & Cosine          & Optuna-selected \\
+    Early stop   & patience~\tbd{} & patience~\tbd{} \\
+    Random seeds & $\geq 3$        & $\geq 3$ \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+\end{table}
+
+\textbf{Reproducibility:} All experiments run with $\geq$3
+independent random seeds. Results are reported as
+mean~$\pm$~std across seeds. Data splits are fixed before any
+training, reproduced via \texttt{random.seed(<seed>)}.
+
+% ================================================================
+%  SECTION VI --- RESULTS
+% ================================================================
+\section{Results}
+
+\subsection{Stage 1: Cell Extraction}
+
+Table~\ref{tab:stage1_results} compares YOLOv8-OBB against the
+best classical baseline (fullmodulev4).
+
+\begin{table}[t]
+  \caption{Stage~1 cell extraction performance}
+  \label{tab:stage1_results}
+  \begin{center}
+  \renewcommand{\arraystretch}{1.1}
+  \small
+  \begin{tabular}{llcccc}
+    \toprule
+    \textbf{Model} & \textbf{Type} &
+    \textbf{mAP@.5} & \textbf{mAP@.5:.95} &
+    \textbf{Compl.} & \textbf{O-Seg} \\
+    \midrule
+    YOLO-OBB & Full-144 & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+    YOLO-OBB & Full-208 & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+    YOLO-OBB & Partial  & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+    Classical (best) & Full & N/A & N/A & $\sim$90\,\%* & High \\
+    \bottomrule
+    \multicolumn{6}{l}{\footnotesize *Estimated; manual
+    verification required per module.} \\
+    \multicolumn{6}{l}{\footnotesize Compl.\,=\,Completeness
+    rate; O-Seg\,=\,Over-segmentation rate.}
+  \end{tabular}
+  \end{center}
+\end{table}
+
+\subsection{Stage 2: Binary Quality Triage}
+
+Table~\ref{tab:stage2_results} shows the ablation across
+backbone and CBAM settings.
+Rows~1--2 isolate the CBAM contribution (same backbone, same
+LR, with/without CBAM) from the Optuna tuning contribution
+in rows~3--5.
+
+\begin{table}[t]
+  \caption{Stage~2 binary triage performance}
+  \label{tab:stage2_results}
+  \begin{center}
+  \renewcommand{\arraystretch}{1.1}
+  \small
+  \begin{tabular}{llcccc}
+    \toprule
+    \textbf{Backbone} & \textbf{CBAM} &
+    \textbf{Optuna} & \textbf{Acc.} &
+    \textbf{F1} & \textbf{AUROC} \\
+    \midrule
+    ResNet-18  & No  & No  & \tbd{} & \tbd{} & \tbd{} \\
+    ResNet-18  & Yes & No  & \tbd{} & \tbd{} & \tbd{} \\
+    ResNet-50  & Yes & Yes & \tbd{} & \tbd{} & \tbd{} \\
+    EffNet-B0  & Yes & Yes & \tbd{} & \tbd{} & \tbd{} \\
+    EffNet-B3  & Yes & Yes & \tbd{} & \tbd{} & \tbd{} \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+\end{table}
+
+Results will be reported separately for monocrystalline and
+polycrystalline cells, as defect visibility and class
+distribution differ by technology.
+
+% ================================================================
+%  SECTION VII --- DISCUSSION
+% ================================================================
+\section{Discussion}
+
+\subsection{Why Classical OpenCV Failed at Scale}
+
+The 15-notebook preprocessing journey reveals four root causes:
+(1)~hyperparameter brittleness across imaging conditions;
+(2)~module format sensitivity where projection-peak detectors
+miscounted grid lines between modules of the same physical
+format (208 vs.\ 182 cells);
+(3)~contrast variability causing morphological grid detectors
+to miss busbar lines in degraded regions; and
+(4)~perspective intolerance of axis-aligned morphological
+kernels.
+YOLOv8-OBB subsumes all four sensitivities into learned model
+weights, trading hand-crafted rules for a labelled training
+data requirement.
+
+\subsection{Unified Detector Architecture}
+
+A alternative design would use separate detectors for
+full-module vs.\ partial-module inputs.
+The fullmodulev4 experience demonstrates that even within the
+full-module track, format-specific tuning is unavoidable
+classically.
+A single YOLOv8-OBB model trained on a mix of image types
+generalises across both input categories, reducing deployment
+complexity and maintenance burden.
+
+\subsection{CBAM for Defect-Aware Triage}
+
+Defect features in EL images are spatially localised and
+spectrally discriminative---appearing as dark regions on a
+brighter background.
+CBAM's channel attention selects defect-relevant feature maps
+while spatial attention suppresses background; this is
+expected to provide measurable F1 and AUROC gains (rows~1
+vs.~2 in Table~\ref{tab:stage2_results}) without requiring
+explicit defect localisation annotations during training.
+
+\subsection{Limitations}
+
+\begin{itemize}
+  \item \textit{Domain gap}: Training data are lab EL images;
+        field-collected EL introduces compression artefacts,
+        variable exposure, and ambient light.
+  \item \textit{Severity scoring absent}: The current pipeline
+        produces a binary triage decision but no continuous
+        severity score, limiting actionability for maintenance
+        prioritisation.
+  \item \textit{Unresolved taxonomy}: Several of the 29
+        original defect class IDs remain unmapped; their
+        resolution (merge vs.\ drop) affects reported class
+        frequencies.
+\end{itemize}
+
+% ================================================================
+%  SECTION VIII --- CONCLUSION AND FUTURE WORK
+% ================================================================
+\section{Conclusion and Future Work}
+
+We have presented a two-stage automated inspection pipeline for
+PV modules operating on raw module-level EL imagery.
+A systematic ablation of 15 classical OpenCV approaches
+established that grid-line detection cannot robustly scale to
+deployment-level diversity of imaging conditions, module
+formats, and orientations, motivating YOLOv8-OBB as a unified
+Stage~1 cell extractor.
+Stage~2 binary triage uses CBAM-augmented CNNs with
+Optuna-based hyperparameter search to address the coarse-label
+limitation without localisation supervision.
+
+Planned future work includes:
+(1)~completing Stage~3 pixel-level defect segmentation with the
+29$\to$4 consolidated taxonomy and CNN vs.\ transformer
+comparison;
+(2)~severity scoring by mapping segmentation outputs to
+power-loss metrics from IV-curve characterisation;
+(3)~instance-level defect localisation for counting and spatial
+clustering;
+(4)~domain adaptation from lab EL to field-acquired imagery;
+and
+(5)~edge deployment benchmarking on embedded GPU hardware
+(e.g., NVIDIA Jetson Orin) for real-time manufacturing
+integration.
+
+% ================================================================
+%  ACKNOWLEDGMENT
+% ================================================================
+\section*{Acknowledgment}
+
+This work was supported by the Indian Institute of Technology
+Mandi. The authors thank their research supervisor for
+invaluable guidance and support throughout this project.
+
+% ================================================================
+%  REFERENCES
+% ================================================================
+\begin{thebibliography}{00}
+
+\bibitem{deitsch2019}
+S.\ Deitsch, V.\ Christlein, S.\ Berger, C.\ Buerhop-Lutz,
+A.\ Maier, F.\ Gallwitz, and C.\ Riess,
+``Automatic classification of defective photovoltaic module
+cells in electroluminescence images,''
+\textit{Solar Energy}, vol.~185, pp.~455--468, 2019.
+
+\bibitem{he2016}
+K.\ He, X.\ Zhang, S.\ Ren, and J.\ Sun,
+``Deep residual learning for image recognition,''
+in \textit{Proc.\ IEEE Conf.\ Comput.\ Vis.\ Pattern
+Recognit.\ (CVPR)}, 2016, pp.~770--778.
+
+\bibitem{tan2019}
+M.\ Tan and Q.\ V.\ Le,
+``EfficientNet: Rethinking model scaling for convolutional
+neural networks,''
+in \textit{Proc.\ Int.\ Conf.\ Mach.\ Learn.\ (ICML)},
+2019, pp.~6105--6114.
+
+\bibitem{woo2018}
+S.\ Woo, J.\ Park, J.-Y.\ Lee, and I.\ S.\ Kweon,
+``CBAM: Convolutional Block Attention Module,''
+in \textit{Proc.\ Eur.\ Conf.\ Comput.\ Vis.\ (ECCV)},
+2018, pp.~3--19.
+
+\bibitem{akiba2019}
+T.\ Akiba, S.\ Sano, T.\ Yanase, T.\ Ohta, and M.\ Koyama,
+``Optuna: A next-generation hyperparameter optimization
+framework,''
+in \textit{Proc.\ ACM SIGKDD Int.\ Conf.\ Knowl.\ Disc.\
+Data Min.\ (KDD)}, 2019, pp.~2623--2631.
+
+\bibitem{xie2021}
+E.\ Xie, W.\ Wang, Z.\ Yu, A.\ Anandkumar, J.\ M.\ Alvarez,
+and P.\ Luo,
+``SegFormer: Simple and efficient design for semantic
+segmentation with transformers,''
+in \textit{Adv.\ Neural Inf.\ Process.\ Syst.\ (NeurIPS)},
+2021.
+
+\bibitem{ronneberger2015}
+O.\ Ronneberger, P.\ Fischer, and T.\ Brox,
+``U-Net: Convolutional networks for biomedical image
+segmentation,''
+in \textit{Proc.\ Int.\ Conf.\ Med.\ Image Comput.\
+Comput.-Assist.\ Interv.\ (MICCAI)}, 2015, pp.~234--241.
+
+\bibitem{zhou2018}
+Z.\ Zhou, M.\ M.\ Rahman Siddiquee, N.\ Tajbakhsh, and
+J.\ Liang,
+``UNet++: A nested U-Net architecture for medical image
+segmentation,''
+in \textit{Proc.\ Deep Learn.\ Med.\ Image Anal.\
+(DLMIA/MICCAI)}, 2018.
+
+\bibitem{redmon2016}
+J.\ Redmon, S.\ Divvala, R.\ Girshick, and A.\ Farhadi,
+``You only look once: Unified, real-time object detection,''
+in \textit{Proc.\ IEEE Conf.\ Comput.\ Vis.\ Pattern
+Recognit.\ (CVPR)}, 2016, pp.~779--788.
+
+\bibitem{jocher2023}
+G.\ Jocher \textit{et al.},
+``Ultralytics YOLOv8,'' 2023.
+[Online]. Available: \url{https://github.com/ultralytics/ultralytics}
+
+\bibitem{hough_lines}
+R.\ O.\ Duda and P.\ E.\ Hart,
+``Use of the Hough transformation to detect lines and curves
+in pictures,''
+\textit{Commun.\ ACM}, vol.~15, no.~1, pp.~11--15, 1972.
+
+\bibitem{morph_lines}
+P.\ Soille,
+\textit{Morphological Image Analysis: Principles and
+Applications}, 2nd~ed.
+Berlin: Springer, 2003.
+
+\bibitem{projection_profiles}
+K.\ Y.\ Wong,
+``Document analysis and recognition using projection
+profiles,''
+\textit{Pattern Recognit.}, vol.~15, no.~3, pp.~191--199, 1982.
+
+\bibitem{dataset_tbd}
+\textbf{[Dataset citation --- to be confirmed upon permission
+approval]}, unpublished.
+
+\end{thebibliography}
+
+\end{document}

@@ -1,0 +1,47 @@
+**/epoch*.pt
+@"
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# YOLO / training outputs
+runs/
+wandb/
+weights/
+checkpoints/
+
+# Model weights
+*.pt
+*.pth
+*.onnx
+
+# Datasets
+datasets/
+data/
+*.zip
+
+# Generated results
+results/
+outputs/
+predictions/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+"@ | Set-Content .gitignore

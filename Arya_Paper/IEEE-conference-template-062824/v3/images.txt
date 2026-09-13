@@ -1,0 +1,188 @@
+﻿=============================================================
+ IMAGES REQUIRED FOR iSPEC 2026 PAPER (v2)
+ "A Two-Stage Deep Learning Pipeline for Automated
+  Cell-Level Extraction and Defect Triage in PV Modules"
+=============================================================
+
+This file lists every figure required for the v2 paper in
+the order it should appear in the LaTeX source.
+For each figure: filename used in \includegraphics, title,
+description of content, and source/generation notes.
+
+-------------------------------------------------------------
+FIGURE 1
+-------------------------------------------------------------
+Filename:    fig_pipeline_overview.png
+LaTeX label: fig:pipeline_overview
+Title:       End-to-End Two-Stage Pipeline Overview
+Section:     Introduction or Section IV (Methodology 4.4)
+Description:
+  Horizontal block-diagram showing the full inference flow:
+  [Raw Module EL Image (JPEG, arbitrary orientation)]
+    --> [Stage 1: YOLOv8-OBB Cell Detector]
+        (Oriented bounding boxes: cx, cy, w, h, theta)
+    --> [Perspective Correction: warpPerspective]
+        (Canonical upright cell crops)
+    --> [Stage 2: CBAM-CNN Binary Triage]
+        (OK / B-grade decision per cell)
+    --> [Future Work: Stage 3 Segmentation]
+        (pixel-level defect map -- dashed box)
+  Include representative thumbnail images at each stage.
+  Use arrows between blocks. Mark Stage 3 block in dashed
+  outline to visually indicate future work.
+Generation:
+  Create as a vector graphic (Inkscape / draw.io / TikZ).
+  Export at >= 300 DPI as PNG for inclusion.
+
+-------------------------------------------------------------
+FIGURE 2
+-------------------------------------------------------------
+Filename:    fig_clahe_effect.png
+LaTeX label: fig:clahe
+Title:       Preprocessing: Median Blur + CLAHE Effect on EL Images
+Section:     Section III (Dataset -- Preprocessing subsection)
+Description:
+  Two-column grid, 2 rows (one monocrystalline, one polycrystalline):
+  | Original grayscale EL image | After median blur + CLAHE |
+  Each cell image should be approx 256x256 px.
+  Caption should note: clipLimit=2.0, tileGridSize=8x8.
+  Demonstrates normalisation of non-uniform EL emission.
+Source:
+  Extract from preprocessing1.ipynb or preprocessing2.ipynb
+  (CellExtractOpenCV folder).
+  Use ARTS dataset images (e.g., ARTS_00007_r4_c5.png) and
+  an SDLE or BMRK image for the second row.
+
+-------------------------------------------------------------
+FIGURE 3
+-------------------------------------------------------------
+Filename:    fig_classical_failures.png
+LaTeX label: fig:classical_fail
+Title:       Classical OpenCV Failure Gallery (4-panel)
+Section:     Section IV -- Phase A: CellExtractOpenCV
+Description:
+  2x2 panel grid showing representative failure modes:
+  (a) Top-left:  SUCCESS -- pp2 clean morphological grid detection
+      on ARTS_00007_r4_c5.png. Show original + perspective-corrected
+      256x256 crop side by side. Label: "pp2: success on clean image"
+  (b) Top-right: FAILURE -- pp4 "no cell found" example.
+      Show original image + intermediate adaptive threshold /
+      grid image where the detection broke down.
+      Label: "pp4: 'no cell found' on challenging ARTS image"
+  (c) Bottom-left: pp8 / pp11 multi-cell Hough+DBSCAN output.
+      Show the image with detected merged lines overlaid.
+      Vertical: [84,127,168,253,334,398], Horizontal: [99,135,384].
+      Label: "pp8/pp11: multi-cell requires a priori line count"
+  (d) Bottom-right: fmv1 raw Hough output on full module.
+      Show duplicate near-parallel line detections before merging.
+      Label: "fmv1: near-duplicate Hough lines on full module"
+Source:
+  Generated from notebook outputs in CellExtractOpenCV/ and
+  FullModuleOpenCV/ directories.
+
+-------------------------------------------------------------
+FIGURE 4
+-------------------------------------------------------------
+Filename:    fig_yolo_detections.png
+LaTeX label: fig:yolo_detections
+Title:       YOLOv8-OBB Detections and Perspective-Corrected Cell Crops
+Section:     Section IV -- Phase C: YOLOv8-OBB
+Description:
+  Two-part figure (stacked vertically):
+  TOP: Full-module EL image with all detected oriented bounding
+       boxes overlaid, colour-coded by confidence score
+       (e.g., green = high confidence, yellow = medium).
+       Include a tilted or slightly rotated module to demonstrate
+       OBB rotation robustness. Show the module format label
+       (144-cell or 208-cell) and number of detections.
+  BOTTOM: Grid of 6-9 resulting perspective-corrected individual
+          cell crops (128x128 or 256x256 each), showing both
+          OK-looking cells and visibly defective cells.
+          Include at least one polycrystalline and one
+          monocrystalline cell crop.
+Source:
+  Generated from cell_extract-yolov8-obb.ipynb
+  (CellExtraction/YOLO/YOLOv8-OBB-aug/).
+  Use a trained checkpoint from runs/ directory if available,
+  or create a representative illustration.
+
+-------------------------------------------------------------
+FIGURE 5
+-------------------------------------------------------------
+Filename:    fig_cbam_architecture.png
+LaTeX label: fig:cbam_arch
+Title:       CBAM Dual-Attention Module Architecture (Stage 2)
+Section:     Section IV -- Stage 2: Binary Quality Triage
+Description:
+  Architecture diagram showing the CBAM block as inserted
+  after the final convolutional stage of the backbone.
+  Show two sequential paths:
+  PATH 1 -- Channel Attention:
+    Input feature map F (C x H x W)
+    --> Global Average Pool (1x1xC) + Global Max Pool (1x1xC)
+    --> Shared MLP (FC: C -> C/r -> C with ReLU)
+    --> Element-wise sum
+    --> Sigmoid -> M_c (channel attention map)
+    --> F' = M_c (x) F  (channel-recalibrated features)
+  PATH 2 -- Spatial Attention:
+    F' (C x H x W)
+    --> Channel-wise AvgPool (1 x H x W) + MaxPool (1 x H x W)
+    --> Concatenate (2 x H x W)
+    --> Conv2D 7x7 -> Sigmoid -> M_s (spatial attention map)
+    --> Output = M_s (x) F' (final attended features)
+  Annotate with feature map shapes at each step.
+  Use consistent colour scheme: blue = convolution,
+  orange = pooling, green = attention map.
+Source:
+  Create as vector graphic (Inkscape / draw.io / TikZ).
+  Reference: Woo et al., ECCV 2018 (CBAM paper, Fig. 1).
+
+-------------------------------------------------------------
+FIGURE 6
+-------------------------------------------------------------
+Filename:    fig_optuna_history.png
+LaTeX label: fig:optuna
+Title:       Optuna Hyperparameter Search -- Validation AUROC vs. Trial
+Section:     Section IV -- Stage 2: Hyperparameter Optimisation
+Description:
+  Line/scatter plot:
+  X-axis: Trial number (0 to N_trials)
+  Y-axis: Validation AUROC (0 to 1)
+  Show: scatter of individual trial AUROC values (grey dots)
+        + running best-so-far AUROC line (blue/orange bold line)
+  Annotate: best trial marker with star/diamond, showing
+            backbone name + AUROC value as annotation.
+  Optional: colour-code dots by backbone type
+            (ResNet-18, ResNet-50, EffNet-B0, EffNet-B3).
+Source:
+  Generated from Optuna study object after running
+  the Stage 2 hyperparameter search.
+  Use optuna.visualization.plot_optimization_history() or
+  custom matplotlib plot from study.trials_dataframe().
+  NOTE: placeholder figure needed until experiments complete.
+
+=============================================================
+ NOTES FOR ALL FIGURES
+=============================================================
+- All figures must be saved at minimum 300 DPI for print quality.
+- Preferred format: PNG (for raster outputs from notebooks)
+  or PDF (for vector graphics to avoid pixelation).
+- IEEE two-column format: single-column figures use \columnwidth
+  (~88 mm); double-column figures use \textwidth (~180 mm).
+- Keep figure file sizes reasonable (< 2 MB each) for PDF compilation.
+- All figure files should be placed in the SAME directory as
+  iSPEC2026_SolarVortex.tex (v2 folder) before compilation.
+- Figure filenames as listed above must match exactly the
+  \includegraphics{...} commands in the .tex file.
+- After generating figures, update the paper .tex file to
+  add any figure cross-references where indicated by comments.
+
+=============================================================
+ FIGURE PLACEMENT IN PAPER (approximate)
+=============================================================
+Fig 1 -- fig_pipeline_overview  : Introduction or Sec IV.4
+Fig 2 -- fig_clahe_effect       : Sec III (Preprocessing)
+Fig 3 -- fig_classical_failures : Sec IV.A (CellExtractOpenCV)
+Fig 4 -- fig_yolo_detections    : Sec IV.C (YOLOv8-OBB) [IN TEX]
+Fig 5 -- fig_cbam_architecture  : Sec IV (Stage 2 Architecture)
+Fig 6 -- fig_optuna_history     : Sec IV (Stage 2 Optuna)

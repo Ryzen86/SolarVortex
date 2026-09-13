@@ -1,0 +1,366 @@
+% =============================================================
+% IEEE iSPEC 2026 Conference Paper  -- VERSION 4
+% Rules: IEEEtran, two-column, strict 6 pages
+% =============================================================
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{url}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\title{A Two-Stage Deep Learning Pipeline for Automated\\
+Cell-Level Extraction and Defect Triage in Photovoltaic Modules%
+\thanks{This work was carried out at [University Name].}}
+
+% ================================================================
+%  AUTHORS
+% ================================================================
+\author{%
+\IEEEauthorblockN{1\textsuperscript{st} \textbf{[Author 1 Name]}}
+\IEEEauthorblockA{\textit{\textbf{[Department]}} \\
+\textit{Indian Institute of Technology Mandi}\\
+Mandi, Himachal Pradesh, India \\
+\textbf{[email@iitmandi.ac.in]}}
+\and
+\IEEEauthorblockN{2\textsuperscript{nd} \textbf{[Author 2 Name]}}
+\IEEEauthorblockA{\textit{\textbf{[Department]}} \\
+\textit{Indian Institute of Technology Mandi}\\
+Mandi, Himachal Pradesh, India \\
+\textbf{[email@iitmandi.ac.in]}}
+}
+
+\maketitle
+
+\begin{abstract}
+Automated visual inspection of photovoltaic (PV) modules is critical for scalable quality control, yet most published pipelines assume pre-cropped single-cell inputs and do not address the module-to-cell extraction problem. We present a two-stage deep learning pipeline that operates directly on raw module-level electroluminescence (EL) images. Stage~1 adopts YOLOv8-OBB (oriented bounding boxes) after a systematic study of fifteen classical OpenCV-based approaches, none of which generalised robustly. All five YOLOv8-OBB model scales achieve mAP@0.5\,=\,0.9950 on the test set, with the nano variant at 222~FPS. Stage~2 benchmarks seven architectures---ConvNeXt-Tiny, DenseNet-121, MobileNet-V3-Large, ResNet-101, EfficientNet-B4, Swin-S, and ViT-B/16---via Optuna hyperparameter search for binary EL defect triage (OK vs.\ B-grade). ConvNeXt-Tiny achieves best accuracy (97.2\,\%, AUC\,=\,98.6\,\%); DenseNet-121 leads on AUC/PR-AUC (98.9\,\%/99.3\,\%); MobileNet-V3-Large offers the best efficiency at 3.0M parameters.
+\end{abstract}
+
+\begin{IEEEkeywords}
+photovoltaic inspection, electroluminescence, YOLOv8-OBB, oriented bounding boxes, binary defect classification, ConvNeXt, Optuna, deep learning
+\end{IEEEkeywords}
+
+%% ============================================================
+\section{Introduction}
+
+Global PV capacity is projected to exceed 10~TW by~2030~\cite{iea2023}, placing unprecedented demands on automated quality assurance. Electroluminescence (EL) imaging reveals recombination-active sub-surface defects invisible to conventional optics and has become the dominant non-destructive characterisation technique for commercial PV modules. Manual EL review cannot scale to modern manufacturing throughput or drone-based fleet inspection rates.
+
+Automated EL defect analysis has been extensively studied at the \textit{single-cell} level. The canonical ELPV dataset~\cite{deitsch2019} provides 2{,}624 labelled cell-crop images; ResNet and EfficientNet backbones~\cite{he2016,tan2019} achieve binary accuracy exceeding 90\,\% on it. In realistic deployment, however, raw \textit{module-level} images arrive with arbitrary orientation, partial occlusion, and perspective distortion---no robust plug-in extraction stage exists.
+
+Three unresolved gaps motivate this work: (1)~classical module-to-cell extraction fails to generalise across formats, contrast levels, and orientations; (2)~existing benchmarks compare few architectures without principled hyperparameter search; (3)~binary triage is a necessary precursor to fine-grained pixel-level defect segmentation.
+
+\textbf{Contributions:}
+\begin{enumerate}
+  \item Systematic ablation of \textbf{fifteen classical OpenCV iterations} with root-cause analysis of four deployment-scale failure modes.
+  \item \textbf{YOLOv8-OBB cell extractor} (mAP@0.5\,=\,0.9950, 222~FPS) covering full-module, partial-module, and single-cell inputs in one model.
+  \item \textbf{7-architecture Optuna benchmark} for binary EL triage identifying ConvNeXt-Tiny as best overall and DenseNet-121 as best ranker.
+  \item Roadmap for \textbf{Stage~3 pixel-level segmentation} with principled 29$\to$4 superclass taxonomy.
+\end{enumerate}
+
+%% ============================================================
+\section{Related Work}
+\label{sec:related}
+
+\textbf{EL datasets.} The ELPV dataset~\cite{deitsch2019} (2{,}624 grayscale crops, $300\times300$~px) is the canonical benchmark. Its pre-cropped format has driven the single-cell paradigm, leaving module-level extraction unaddressed.
+
+\textbf{Classical cell extraction.} Hough-transform line detection~\cite{duda1972}, morphological grid extraction~\cite{soille2003}, and projection profiling~\cite{wong1982} all rely on image-specific hyperparameters that do not transfer across formats, contrast levels, or orientations.
+
+\textbf{Detection.} YOLO-family detectors~\cite{redmon2016,jocher2023} dominate real-time industrial inspection. YOLOv8-OBB extends axis-aligned detection with a learned rotation angle~$\theta$, enabling tight fitting of rotated objects.
+
+\textbf{Classification.} ResNet~\cite{he2016} and EfficientNet~\cite{tan2019} dominate EL defect classification. ConvNeXt~\cite{liu2022} and Swin Transformer~\cite{liu2021} achieve superior fine-grained recognition but have not been benchmarked on EL with Optuna tuning~\cite{akiba2019}.
+
+%% ============================================================
+\section{Dataset}
+\label{sec:dataset}
+
+\subsection{Stage 1: Module-Level EL Images}
+2{,}212 full-module JPEG EL images spanning 144-cell ($12\times12$) and 208-cell ($8\times26$) module formats from multiple manufacturers (ARTS, SDLE, BMRK subsets). Module-level split: 1{,}769 train / 443 val (80/20), preventing cell-level data leakage.
+
+\subsection{Stage 2: Cell-Level Triage Images}
+ELPV dataset~\cite{deitsch2019} augmented with Stage~1-extracted crops. Labels binarised: \textit{OK} vs.\ \textit{B-grade} (any defect). Module-level group split prevents spatial correlation across folds. Table~\ref{tab:datasplit} reports statistics. The test set is 32.6\,\% OK / 67.4\,\% B-grade, reflecting realistic deployment imbalance.
+
+\begin{table}[t]
+  \caption{Stage~2 dataset split statistics}
+  \label{tab:datasplit}
+  \begin{center}
+  \renewcommand{\arraystretch}{1.05}\small
+  \begin{tabular}{lrrr}
+    \toprule
+    \textbf{Split} & \textbf{Total} & \textbf{OK} & \textbf{B-grade}\\
+    \midrule
+    Train & 6{,}575 & 4{,}428 & 2{,}147\\
+    Val   & 1{,}408 &   954   &   454\\
+    Test  & 1{,}409 &   949   &   460\\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+\end{table}
+
+\subsection{Preprocessing}
+Single-channel 8-bit grayscale $\to$ median blur ($3\times3$, noise suppression) $\to$ CLAHE (clipLimit\,=\,2.0, tileGridSize\,=\,$8\times8$, EL normalisation) $\to$ \texttt{cv2.warpPerspective} (canonical upright crops) $\to$ zero-mean unit-variance normalisation.
+
+%% ============================================================
+\section{Methodology}
+\label{sec:method}
+
+\subsection{Stage 1: Cell Extraction}
+\label{sec:stage1}
+
+\subsubsection{Classical OpenCV Exploration (15 notebooks)}
+
+Two parallel tracks were studied. The \textbf{CellExtractOpenCV} track (pp1--pp11, 11 notebooks) targeted partial/single-cell images; the \textbf{FullModuleOpenCV} track (fmv1--fmv4, 4 notebooks) targeted full-resolution module images. Table~\ref{tab:classical_all} summarises all 15 iterations and their primary failure modes.
+
+\begin{table}[t]
+  \caption{Classical exploration: 15-notebook failure summary}
+  \label{tab:classical_all}
+  \begin{center}
+  \renewcommand{\arraystretch}{1.0}\scriptsize
+  \begin{tabular}{p{0.55cm}p{0.35cm}p{1.65cm}p{3.55cm}}
+    \toprule
+    \textbf{NB} & \textbf{Trk} & \textbf{Technique} & \textbf{Key Failure}\\
+    \midrule
+    pp1  & C & CLAHE+profiles   & Exploratory; no extraction\\
+    pp2  & C & Morph.+warp      & Single image; not generalised\\
+    pp3  & C & Inv.+contour     & Conflates cell/defect regions\\
+    pp4  & C & Batch extractor  & \textbf{5--10\,\% skip rate}\\
+    pp5  & C & ---              & YOLO pivot notebook\\
+    pp6  & C & Gaussian+Canny   & Fragmented contours\\
+    pp7  & C & NL-Means+Hough   & Image-specific threshold\\
+    pp8  & C & Multi-cell Hough & Requires a priori line count\\
+    pp9  & C & Otsu+Canny       & Format-specific count limit\\
+    pp10 & C & Otsu+poly.\ fit  & Fails on multi-cell images\\
+    pp11 & C & Hough+DBSCAN     & Dataset-specific $\epsilon$\\
+    \midrule
+    fmv1 & F & HoughLinesP      & Near-duplicate lines; unusable\\
+    fmv2 & F & Proj.\ peaks     & \textbf{144 cells OK}; format-specific\\
+    fmv3 & F & Batch fmv2       & 208 vs.\ 182 cells, same format\\
+    fmv4 & F & DBSCAN merging   & Needs manual count verification\\
+    \bottomrule
+    \multicolumn{4}{l}{\scriptsize C\,=\,CellExtract; F\,=\,FullModule track.}
+  \end{tabular}
+  \end{center}
+\end{table}
+
+Four root-cause failure modes emerge across all 15 notebooks: (1)~\textit{Hyperparameter brittleness}---CLAHE limits, Hough thresholds, DBSCAN~$\epsilon$ tuned per image; (2)~\textit{Module format sensitivity}---projection-peak counting yielded 208 vs.\ 182 cells for nominally identical modules (fmv3); (3)~\textit{Contrast variability}---low-EL regions cause busbar lines to fall below adaptive threshold; (4)~\textit{Perspective intolerance}---axis-aligned morphological kernels break at even $5$--$10^\circ$ tilt.
+
+\subsubsection{YOLOv8-OBB: Unified Final Approach}
+\label{sec:yolo}
+
+\textbf{Why not axis-aligned YOLO?} Standard axis-aligned YOLO detectors must \textit{fully enclose} rotated objects. For a $10^\circ$-tilted $144\times144$~px PV cell, the enclosing rectangle grows to $\approx$\textbf{[TBD]}~px, wasting $\sim$\textbf{[TBD]}\,\% of box area on background---degrading Stage~2 crop quality and causing heavy inter-cell NMS suppression. YOLOv8-OBB directly regresses $\theta$, keeping boxes tight to the cell boundary. YOLOv11-Seg is not compared: it is a segmentation model requiring pixel-level instance masks unavailable for Stage~1, and instance segmentation is the Stage~3 future-work target.
+
+YOLOv8-OBB (Ultralytics~8.3.235~\cite{jocher2023}) was adopted as the sole Stage~1 detector. Each detection outputs a five-parameter oriented bounding box:
+\begin{equation}
+  \mathbf{d} = (c_x,\; c_y,\; w,\; h,\; \theta),
+  \label{eq:obb}
+\end{equation}
+where $c_x, c_y \in \mathbb{R}$ are the centre pixel coordinates; $w, h \in \mathbb{R}^{+}$ are the width and height along the rotated axes; and $\theta \in [-90^\circ, 90^\circ)$ is the clockwise rotation angle of the box's major axis relative to the horizontal.
+
+Post-processing converts each OBB to a rectified cell crop:
+\begin{equation}
+  (c_x, c_y, w, h, \theta)
+  \xrightarrow{\;\text{corners}\;}
+  M_{\text{persp}}
+  \xrightarrow{\;\texttt{warpPersp.}\;}
+  \hat{I}_{\text{cell}},
+  \label{eq:postproc}
+\end{equation}
+where the \textit{corners} step maps OBB parameters to four corner coordinates $\{p_i\}_{i=1}^{4}$; $M_{\text{persp}} \in \mathbb{R}^{3\times3}$ is the perspective transformation matrix from \texttt{cv2.getPerspectiveTransform}; and $\hat{I}_{\text{cell}} \in \mathbb{R}^{H_0 \times W_0}$ is the canonical upright crop at fixed resolution $H_0 \times W_0$.
+
+\subsection{Stage 2: Binary Quality Triage}
+\label{sec:stage2}
+
+\subsubsection{Benchmark Design}
+Seven pretrained backbone families were fine-tuned end-to-end with a global average pooling head, dropout-regularised FC layer, and sigmoid binary output. No CBAM augmentation is applied in this baseline benchmark; attention-augmented variants are the immediate next step (Section~\ref{sec:conclusion}).
+
+\subsubsection{Hyperparameter Search via Optuna}
+Each backbone receives an identical Optuna trial budget; the search space is defined in Table~\ref{tab:optuna_space}. The objective is validation AUC (threshold-invariant under class imbalance). Fig.~\ref{fig:optuna_importance} shows the hyperparameter importance for ConvNeXt-Tiny; learning rate and weight decay dominate across all backbones.
+
+\begin{table}[t]
+  \caption{Optuna search space (Stage~2)}
+  \label{tab:optuna_space}
+  \begin{center}
+  \renewcommand{\arraystretch}{1.05}\small
+  \begin{tabular}{p{2.1cm}p{5.1cm}}
+    \toprule
+    \textbf{Hyperparameter} & \textbf{Search Space}\\
+    \midrule
+    Learning rate   & LogUniform$[10^{-5},\;10^{-2}]$\\
+    Weight decay    & LogUniform$[10^{-6},\;10^{-2}]$\\
+    Optimizer       & \{Adam, AdamW, SGD+mom.\}\\
+    LR scheduler    & \{cosine, step, plateau\}\\
+    Dropout         & Uniform$[0.01,\;0.5]$\\
+    Batch size      & \{16, 32, 64\}\\
+    Freeze strategy & \{none, partial, full\}\\
+    Objective       & Validation AUC\\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_optuna_importance.png}
+  \caption{Optuna hyperparameter importance (ConvNeXt-Tiny, Stage~2). Learning rate and weight decay are the dominant factors, consistent across all seven backbones.}
+  \label{fig:optuna_importance}
+\end{figure}
+
+%% ============================================================
+\section{Experimental Setup}
+\label{sec:setup}
+
+\textbf{Hardware:} NVIDIA RTX PRO 4500 Blackwell GPU; AMD Ryzen Threadripper 7960X (48 threads); 192~GB RAM; Ubuntu~24.04.2 LTS (Linux~6.17, 64-bit).
+
+\textbf{Software:} Python~3.x, PyTorch~\textbf{[TBD]}, Ultralytics~8.3.235, \texttt{timm}~\textbf{[TBD]}, Optuna~\textbf{[TBD]}, OpenCV~4.12.0.88, NumPy~1.26.4, scikit-learn~\textbf{[TBD]}, Matplotlib~3.8.4.
+
+\textbf{Reproducibility:} All experiments use a fixed random seed; results represent single-run performance. Multi-seed variance analysis is deferred to future work.
+
+%% ============================================================
+\section{Results}
+\label{sec:results}
+
+\subsection{Stage 1: Cell Extraction}
+
+Table~\ref{tab:stage1_results} benchmarks all five YOLOv8-OBB scales on the 443-image test set. All variants achieve mAP@0.5\,=\,0.9950 with perfect recall (1.0000), confirming task saturation at the lightest scale. YOLOv8n-OBB (3.1M parameters, 4.5~ms/image) is the recommended deployment variant.
+
+\begin{table}[t]
+  \caption{Stage~1 YOLOv8-OBB benchmark (test set, 443 images)}
+  \label{tab:stage1_results}
+  \begin{center}
+  \renewcommand{\arraystretch}{1.05}\small
+  \begin{tabular}{lrrrr}
+    \toprule
+    \textbf{Model} & \textbf{Params} & \textbf{FPS} & \textbf{mAP@.5} & \textbf{mAP@.5:.95}\\
+    \midrule
+    YOLOv8n-OBB & 3.1M  & \textbf{222} & 0.9950 & 0.9909\\
+    YOLOv8s-OBB & 11.4M & 216          & 0.9950 & 0.9932\\
+    YOLOv8m-OBB & 26.4M & 148          & 0.9950 & \textbf{0.9947}\\
+    YOLOv8l-OBB & 44.5M & 118          & 0.9949 & 0.9919\\
+    YOLOv8x-OBB & 69.5M & 86           & 0.9950 & 0.9921\\
+    \midrule
+    Classical (fmv4) & --- & --- & N/A & N/A\\
+    \bottomrule
+    \multicolumn{5}{l}{\footnotesize fmv4: $\sim$90\,\% completeness (est.); no perspective correction.}
+  \end{tabular}
+  \end{center}
+\end{table}
+
+Fig.~\ref{fig:yolo_detections} shows YOLOv8n-OBB predictions on EL module images from the validation set.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth,height=4.5cm,keepaspectratio=false]{fig_yolo_detections.jpg}
+  \caption{YOLOv8n-OBB validation-batch predictions on full-module EL images. Oriented bounding boxes tightly localise individual cells regardless of module tilt; \texttt{cv2.warpPerspective} produces canonical upright crops for Stage~2 inference.}
+  \label{fig:yolo_detections}
+\end{figure}
+
+\subsection{Stage 2: Binary Quality Triage}
+
+Tables~\ref{tab:stage2_results}--\ref{tab:stage2_perclass} present the 7-architecture Optuna benchmark on 1{,}409 test images. ConvNeXt-Tiny achieves the highest accuracy (97.2\,\%) and MCC (93.7\,\%); DenseNet-121 achieves the highest AUC (98.9\,\%) and PR-AUC (99.3\,\%). MobileNet-V3-Large (3.0M parameters) matches ResNet-101 (42.5M) on accuracy, offering the best efficiency trade-off. Transformer-based Swin-S and ViT-B/16 underperform all CNN-based models. Both ConvNeXt-Tiny and DenseNet-121 substantially outperform the SVM (\textbf{[TBD]}\,\%) and CNN (\textbf{[TBD]}\,\%) baselines on ELPV reported by Deitsch et al.~\cite{deitsch2019}.
+
+\begin{table}[t]
+  \caption{Stage~2 binary triage: 7-architecture Optuna benchmark (test set; best trial per backbone)}
+  \label{tab:stage2_results}
+  \begin{center}
+  \renewcommand{\arraystretch}{1.05}\small
+  \setlength{\tabcolsep}{3.0pt}
+  \begin{tabular}{p{1.75cm}rp{0.6cm}p{0.65cm}p{0.65cm}p{0.72cm}p{0.65cm}}
+    \toprule
+    \textbf{Model} & \textbf{Par.} & \textbf{Acc.} & \textbf{F1-M} & \textbf{AUC} & \textbf{PR-AUC} & \textbf{MCC}\\
+    \midrule
+    \textbf{ConvNeXt-T} & 27.8M & \textbf{.972} & \textbf{.968} & .986 & .989 & \textbf{.937}\\
+    DenseNet-121        &  7.0M & .969           & .964          & \textbf{.989} & \textbf{.993} & .929\\
+    MobileNet-V3L       &  3.0M & .960           & .954          & .970 & .973 & .909\\
+    ResNet-101          & 42.5M & .960           & .953          & .980 & .988 & .908\\
+    EffNet-B4           & 17.6M & .952           & .946          & .984 & .984 & .891\\
+    Swin-S              & 48.8M & .949           & .940          & .976 & .986 & .884\\
+    ViT-B/16            & 85.8M & .946           & .937          & .977 & .985 & .877\\
+    \bottomrule
+    \multicolumn{7}{l}{\footnotesize Par.\,=\,Parameters (M); F1-M\,=\,F1-Macro; MCC\,=\,Matthews Corr.\ Coeff.}
+  \end{tabular}
+  \end{center}
+\end{table}
+
+\begin{table}[t]
+  \caption{Stage~2 per-class precision/recall (test set; OK\,=\,460, B-grade\,=\,949)}
+  \label{tab:stage2_perclass}
+  \begin{center}
+  \renewcommand{\arraystretch}{1.05}\small
+  \setlength{\tabcolsep}{3.0pt}
+  \begin{tabular}{p{1.75cm}p{0.6cm}p{0.6cm}p{0.6cm}p{0.6cm}rr}
+    \toprule
+    \textbf{Model} & \textbf{OK-P} & \textbf{OK-R} & \textbf{BG-P} & \textbf{BG-R} & \textbf{FP} & \textbf{FN}\\
+    \midrule
+    \textbf{ConvNeXt-T} & .970 & .989 & .977 & .937 & 29 & 10\\
+    DenseNet-121        & .974 & .980 & .958 & .946 & 25 & 19\\
+    MobileNet-V3L       & .953 & .989 & .976 & .900 & 46 & 10\\
+    ResNet-101          & .953 & .988 & .974 & .900 & 46 & 11\\
+    EffNet-B4           & .958 & .972 & .940 & .913 & 40 & 27\\
+    Swin-S              & .936 & .992 & .980 & .861 & 64 &  8\\
+    ViT-B/16            & .936 & .987 & .971 & .861 & 64 & 12\\
+    \bottomrule
+    \multicolumn{7}{l}{\footnotesize FP\,=\,OK misclassified as BG; FN\,=\,BG misclassified as OK.}
+  \end{tabular}
+  \end{center}
+\end{table}
+
+Fig.~\ref{fig:stage2_roc} shows ROC curves; Fig.~\ref{fig:stage2_paramsf1} shows the parameters-vs.-F1 efficiency trade-off.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_stage2_roc.png}
+  \caption{ROC curves (test set) for all seven Stage~2 architectures. DenseNet-121 (AUC\,=\,0.989) and ConvNeXt-Tiny (AUC\,=\,0.986) are the leading models; Transformer-based Swin-S and ViT-B/16 lag all CNN-based variants.}
+  \label{fig:stage2_roc}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_stage2_paramsf1.png}
+  \caption{Parameters vs.\ test F1-macro for all seven Stage~2 architectures. MobileNet-V3-Large (3.0M, F1\,=\,0.954) achieves the best efficiency; ViT-B/16 (85.8M) provides the poorest return on model capacity.}
+  \label{fig:stage2_paramsf1}
+\end{figure}
+
+%% ============================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Stage 1: Task Saturation and Leakage Verification}
+
+All five YOLOv8-OBB variants achieve mAP@0.5\,=\,0.9950. This saturation is consistent with PV cell grids: once the detector learns the periodic busbar-and-boundary signature from diverse training images, additional model capacity provides diminishing returns. Module-level partitioning (1{,}769 train / 443 val) explicitly prevents cell-level leakage---cells from the same module cannot appear in both splits. The nano variant's 4.5~ms/image latency makes real-time manufacturing-line integration feasible.
+
+\subsection{Stage 2: CNN Inductive Bias on Small Data}
+
+CNN-based models consistently outperform Transformers (Swin-S, ViT-B/16) across all metrics on the $\approx$6{,}575-sample training set. This is expected: CNNs' locality and translation-equivariance inductive biases provide stronger regularisation than self-attention on small data. ConvNeXt-Tiny and DenseNet-121 are statistically comparable on a single-seed run. ConvNeXt leads on accuracy and MCC, making it preferable for threshold-based production decisions; DenseNet leads on AUC and PR-AUC, making it preferable for ranking-based triage. The FN column in Table~\ref{tab:stage2_perclass} is critical for safety-sensitive applications: ConvNeXt minimises B-grade miss rate (FN\,=\,10) while Swin-S achieves FN\,=\,8 at the cost of 64 false alarms.
+
+\textbf{End-to-end latency.} Stage~1 processes one module image in $\approx$4.5~ms (222~FPS). Stage~2 CNN forward pass on a $300\times300$ crop requires $<$\textbf{[TBD]}~ms on the same hardware. Full pipeline throughput is therefore dominated by the OBB detector and enables real-time deployment.
+
+\subsection{Limitations}
+
+\textit{Domain gap}: training on lab EL images; field-acquired EL introduces compression artefacts and ambient light. \textit{No CBAM yet}: attention-augmented variants are the immediate next experiment. \textit{Single-seed results}: multi-seed variance deferred. \textit{Annotation cost}: OBB labelling of 2{,}212 full-module images is labour-intensive; semi-supervised strategies are a natural follow-on.
+
+%% ============================================================
+\section{Conclusion and Future Work}
+\label{sec:conclusion}
+
+We presented a two-stage automated PV module inspection pipeline on raw module-level EL imagery. Fifteen classical OpenCV approaches exhibit four systematic failure modes motivating YOLOv8-OBB as a unified cell extractor; all five OBB scales achieve mAP@0.5\,=\,0.9950 at up to 222~FPS. A 7-architecture Optuna benchmark for binary triage identifies ConvNeXt-Tiny (Acc.\,97.2\,\%, AUC\,98.6\,\%) and DenseNet-121 (AUC\,98.9\,\%, PR-AUC\,99.3\,\%) as the leading architectures, with MobileNet-V3-Large as the best efficiency trade-off---all substantially exceeding ELPV baselines~\cite{deitsch2019}.
+
+\textbf{Future work:}
+(1)~\textit{CBAM augmentation}: channel and spatial attention after the final CNN stage, ablated against the baselines here.
+(2)~\textit{Stage~3 pixel-level segmentation} on B-grade cells, consolidating 29 defect subtypes into four physically motivated superclasses (crack, inactive area, corrosion/metallisation, material/surface) and benchmarking U-Net variants against SegFormer~\cite{xie2021}.
+(3)~Severity scoring calibrated against IV-curve power-loss measurements.
+(4)~Domain adaptation from lab to field-acquired EL/IR imagery.
+(5)~Embedded GPU benchmarking (Jetson Orin) for real-time manufacturing integration.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

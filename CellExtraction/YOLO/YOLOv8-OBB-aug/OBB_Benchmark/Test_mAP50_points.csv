@@ -1,0 +1,6 @@
+Model,Test_mAP50
+yolov8n-obb,0.995
+yolov8s-obb,0.995
+yolov8m-obb,0.995
+yolov8l-obb,0.995
+yolov8x-obb,0.995

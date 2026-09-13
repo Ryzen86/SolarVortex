@@ -1,0 +1,6 @@
+Model,Train_Box_Loss
+yolov8n-obb,0.40159
+yolov8s-obb,0.34186
+yolov8m-obb,0.33759
+yolov8l-obb,0.36775
+yolov8x-obb,0.3516

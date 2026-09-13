@@ -1,0 +1,5 @@
+Model,mAP50
+yolov8s,0.995
+yolov8m,0.995
+yolov8l,0.995
+yolov8x,0.995
